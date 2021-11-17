@@ -116,5 +116,6 @@ class Gameplay:
 # enemy position goes forward slowly when the player moves
 
 
+
 app.run()
 # opens the window and runs the game
