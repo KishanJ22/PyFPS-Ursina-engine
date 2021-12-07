@@ -5,12 +5,12 @@ from ursina.prefabs.health_bar import HealthBar
 from ursina import *
 # imports the Ursina Engine
 from ursina.raycaster import raycast
+from ursina.prefabs.editor_camera import EditorCamera
+import pickle
 
 # imports a raycaster
 window.title = "PyFPS"
 app = Ursina()
-
-
 # initializes the Ursina app
 # window.fullscreen = True
 
@@ -47,7 +47,6 @@ class Player(Entity):
         # picked-up or discarded. I can also add more key bindings for cycling between weapons and showing a map.
         self.player_controls = FirstPersonController(**kwargs)
         super().__init__(parent=self.player_controls)
-
         self.pistol = Entity(model='Pistol_obj.obj',  # fetches the 3D model of the gun from the directory
                              parent=camera.ui,  # makes the gun move with the camera of the FirstPersonController
                              scale=.05,  # sets the scale of the gun
@@ -63,14 +62,6 @@ class Player(Entity):
                                 position=(.35, -.3),
                                 rotation=(180, 85, -3),
                                 visible=False)
-        self.desert_eagle = Entity(model='Deagle.obj',
-                                   parent=camera.ui,
-                                   scale=.09,
-                                   texture='Deagle_Normal.png',
-                                   color=color.gold,
-                                   position=(-.003, -.65),
-                                   rotation=(0, -90, -3),
-                                   visible=False)
         self.berettaM9 = Entity(model='Beretta_M9.obj',
                                 parent=camera.ui,
                                 scale=.035,
@@ -80,14 +71,15 @@ class Player(Entity):
                                 visible=False)
         # all guns are currently set to not be visible because a function will determine which gun is visible because
         # only one gun can be out at a time
-        self.weapons = [self.pistol, self.shotgun_1, self.desert_eagle, self.berettaM9]
+        self.weapons = [self.pistol, self.shotgun_1, self.berettaM9]
         # all weapons are in an array so that a function can go through the weapons
         self.currentWeapon = 0
         # sets the current weapon to 0. This will be used in a function that changes the weapon that is out because this
         # number will be the index of the self.weapons array of the gun that will be visible
         self.switchweapon()  # this will run in the constructor because it will use self.currentWeapon to find a gun in
         # self.weapons, which it will then make the variable 'visible' True
-        self.counter = 0
+        # self.collider = 'mesh'
+        self.ammo = 10
 
     def switchweapon(self):
         for i, v in enumerate(self.weapons):  # i is the index for the array and v is the 'visible' parameter
@@ -132,11 +124,15 @@ class Player(Entity):
             # weapon will change.
             print("down arrow is pressed")
         if key == 'tab':
-            Bullet(model='sphere',
-                   color=color.orange,
-                   scale=0.1,
-                   position=self.player_controls.camera_pivot.world_position,
-                   rotation=self.player_controls.camera_pivot.world_rotation)
+            self.ammo -= 1
+            if self.ammo > 0:
+                Bullet(model='sphere',
+                       color=color.orange,
+                       scale=0.1,
+                       position=self.player_controls.camera_pivot.world_position,
+                       rotation=self.player_controls.camera_pivot.world_rotation,
+                       )
+                print('bullet: ', self.ammo)
 
 
 # Has basic controls for moving the player in a first person game
@@ -157,20 +153,19 @@ class Enemy(Entity):
             scale=(1, 2.5, 0),  # scale=(x,y,z)
             position=position,  # this is the spawn location for the enemy sprite. This isn't a fixed value because
         )
-        # the spawn location is randomised in the for loop in the Gameplay class
+        self.delay = 0
 
     def update(self):
-        # Enemy.enemy.look_at(Vec3(Player.player.x, Enemy.enemy.y, Player.player.z)) # uses the x coordinate and z coordinate
-        self.look_at(player)
-        # of the player and the y coordinate of the enemy
-        self.position += self.forward * 30
+        self.look_at(Gameplay.player)
+        # uses the position of the player to rotate the sprite to look at the player
+        self.position += self.forward * 50
         # this uses the enemy position and makes it go forward by 50 frames
         self.y = 1.2
         # This keeps the y-axis value of the enemy position at 1.2 so that it doesn't go through the floor
         origin = self.world_position
         # sets the start point for the ray (line 80)
-        self.direction = [self.forward, self.back, self.left, self.right]
         # the different directions are stored in an array
+        self.direction = [self.forward, self.back, self.left, self.right]
         random_direction = random.choice(self.direction)
         # the self.direction array is shuffled
         # numbers in the range of 100 to 500 are randomised
@@ -185,12 +180,25 @@ class Enemy(Entity):
         if not ray.hit:
             self.position += random_direction
         # if the ray doesn't hit any object with a collider, it will move in a random direction
+        self.delay += time.dt
+        # the delay variable is set to 0 in the constructor and will increase by the delta time
+        if self.delay > 1:
+            # if the delay is larger than 1 second, it will reset the delay by setting it back to 0 and run an
+            # instance of EnemyBullet, which will fire the bullet
+            self.delay = 0
+            EnemyBullet(
+                model='sphere',
+                color=color.green,
+                scale=0.1,
+                position=self.position,
+                rotation=self.rotation
+            )
 
 
 class Gameplay:
     enemies = []
     # the array for enemy instances
-    for x in range(3):
+    for x in range(5):
         # spawns 3 enemies in by running this loop 3 times
         random_spawn_position = random.randint(100, 200)
         '''
@@ -201,18 +209,66 @@ this is then used in enemy_instance so that each enemy spawns at a random locati
         # creates an instance of Enemy and changes 'random_spawn_position' is used to generate a random spawn point
         enemies.append(enemy_instance)
         # puts each instance in the enemies array
-
+    killcount = 0
+    # this counter is for the number of kills the player gets
     healthBar = HealthBar()
+    player = Player(speed=40)
+    hitbox = Entity(model='cube',
+                    parent=player,
+                    scale=(1.2, 5, .2),
+                    collider='box',
+                    position=(0, 0, -.5),
+                    alpha=0
+                    )
+
+
+class EnemyBullet(Entity):
+    def __init__(self, speed=60, lifetime=5, **kwargs):
+        super().__init__(**kwargs)
+        self.speed = speed  # uses the integer '50' as the speed
+        self.lifetime = lifetime  # uses the integer '10' for how long the bullet will last
+        self.start = time.time()  # uses time to remove the bullet from the game if it has been there for too long
+        # time.time is also used to get the time the bullet is fired and counts from when it was fired
+
+    def update(self):
+        enemy_bullet_ray = raycast(
+            self.world_position,
+            # sets the start position for the ray, which is from the player
+            self.forward,
+            # sets the direction the ray will go
+            # makes sure that the ray only registers with enemy instances
+            traverse_target=Gameplay.hitbox,
+            ignore=(Map.ground, Map.wall_left, Map.wall_back, Map.wall_front, Map.wall_right, Gameplay.enemies),
+            # this is a list of entities that the ray will not affect. This is because the ray would
+            # remove anything it touches
+            distance=self.speed * time.dt,
+            # uses the speed of the bullet and multiplies it by the delta time (the difference between
+            # the previous frame and the current frame) as the distance of the ray
+            debug=True
+        )
+        if not enemy_bullet_ray.hit and time.time() - self.start < self.lifetime:
+            # if the bullet doesn't hit anything with a collider and the bullet doesn't get timed out, the bullet
+            # will move forward
+            self.world_position += self.forward * self.speed * time.dt
+            # time.dt is delta time, which means the difference between the previous frame and current frame
+        else:
+            destroy(self)
+            # if the bullet doesn't hit anything or stays on the ground for too long, then it will be deleted for
+            # performance purposes
+        if enemy_bullet_ray.hit:
+            # if the bullet shot by the enemy collides with anything with a collider, it will reduce the health bar for
+            # the player by 5 each time
+            # print(enemy_bullet_ray.entity)
+            Gameplay.healthBar.value -= 5
 
 
 class Bullet(Entity):
     def __init__(self, speed=50, lifetime=10, **kwargs):
         super().__init__(**kwargs)
-        self.speed = speed  # uses the integer '10' as the speed
+        self.speed = speed  # uses the integer '50' as the speed
         self.lifetime = lifetime  # uses the integer '10' for how long the bullet will last
         self.start = time.time()  # uses time to remove the bullet from the game if it has been there for too long
         # time.time is also used to get the time the bullet is fired and counts from when it was fired
-        self.counter = 0
 
     def update(self):
         enemygroup = Gameplay.enemy_instance.parent
@@ -231,15 +287,6 @@ class Bullet(Entity):
                              # uses the speed of the bullet and multiplies it by the delta time (the difference between
                              # the previous frame and the current frame) as the distance of the ray
                              )
-        if bullet_ray.hit:
-            #self.counter = self.counter + 1
-            #print(self.counter)
-            print(bullet_ray.entity)
-            # This outputs the entity it touches, which can be very useful when making a persistent storage solution
-            # for logging the amount of kills the player gets
-            destroy(bullet_ray.entity)
-            # if the bullet hits anything with a collider, it will remove/destroy the entity that is hit
-        # casts a ray from the position of the gun and returns anything it hits with a collider.
         if not bullet_ray.hit and time.time() - self.start < self.lifetime:
             # if the bullet doesn't hit anything with a collider and the bullet doesn't get timed out, then the bullet
             # will move forward
@@ -250,20 +297,28 @@ class Bullet(Entity):
             # if the bullet doesn't hit anything or stays on the ground for too long, then it will be deleted for
             # performance purposes
         if bullet_ray.hit:
-            #self.counter = self.counter + 1
-            #print(self.counter)
-            print(bullet_ray.entity)
-            # This outputs the entity it touches, which can be very useful when making a persistent storage solution
-            # for logging the amount of kills the player gets
-            destroy(bullet_ray.entity)
-            # if the bullet hits anything with a collider, it will remove/destroy the entity that is hit
+            if bullet_ray.entity in Gameplay.enemies:
+                # This outputs the entity it touches, which can be very useful when making a persistent storage solution
+                # for logging the amount of kills the player gets
+                print(bullet_ray.entity)
+                # casts a ray from the position of the gun and returns anything it hits with a collider.
+                # this outputs the instance the bullet collides with. In this case, it will only output
+                # 'render/scene/enemy' because it will only register with an enemy instance
+                destroy(bullet_ray.entity)
+                # if the bullet hits anything with a collider, it will remove/destroy the entity that is hit
+                # if the instance hit by the bullet is in the enemies array in the Gameplay class
+                # the counter in the gameplay class will increment by 1
+                Gameplay.killcount += 1
+                print(Gameplay.killcount)
+                # this outputs the counter for testing.
+                score = open('score.txt', 'a')
+                score.write(str(Gameplay.killcount))
+                score.close()
 
 
 # uses the position of the player on the map to look at the player
 # Enemy.enemy.y = 3
 # Enemy.enemy.position += Enemy.enemy.forward * 0.05
 # enemy position goes forward slowly when the player moves
-
-player = Player(speed=40)
 app.run()
 # opens the window and runs the game
