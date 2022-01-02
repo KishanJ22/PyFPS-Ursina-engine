@@ -2,17 +2,234 @@ from ursina.prefabs.first_person_controller import FirstPersonController
 # this will allow the user to have basic player controls and this will be built on further with guns and other player
 # controls
 from ursina.prefabs.health_bar import HealthBar
+# this is a health bar for the player, which is in the library
 from ursina import *
 # imports the Ursina Engine
 from ursina.raycaster import raycast
-from ursina.prefabs.editor_camera import EditorCamera
-import pickle
 
 # imports a raycaster
-window.title = "PyFPS"
+
 app = Ursina()
+
+
 # initializes the Ursina app
-# window.fullscreen = True
+
+
+class MainMenu(Entity):
+    def __init__(self, **kwargs):
+        super().__init__(parent=camera.ui)
+
+        # The three entities below create empty entities that will be parents of the menu content
+        self.main_menu = Entity(parent=self, enabled=True)
+        # The main menu is responsible for holding buttons to start the game, quit the game, go to the options menu and
+        # see the leaderboard
+        self.options_menu = Entity(parent=self, enabled=False)
+        # The options menu will be developed in post-development. This will be responsible for allowing the user to
+        # change key bindings and the display resolution
+        self.leaderboard_screen = Entity(parent=self, enabled=False)
+        # The leaderboard screen is responsible for showing the top 5 scores as well as the usernames of the people that
+        # achieved them
+
+        mouse.locked = False
+        mouse.visible = True
+        # these two lines above allow the mouse to be moved and displayed in the game to navigate the main menu
+
+        Text(text="MAIN MENU",
+             parent=self.main_menu,
+             y=0.4,
+             x=0,
+             origin=(0, 0),
+             color=color.black)
+        # this displays MAIN MENU at the top of the main menu
+
+        Text(text="Please click on Input Name, enter a username and click Enter to register your username",
+             parent=self.main_menu,
+             y=0.35,
+             x=0,
+             origin=(0, 0),
+             color=color.black)
+        # this displays what the user should do before starting the game
+
+        Text(text="Press the escape button to quit the game",
+             parent=self.main_menu,
+             y=0.3,
+             x=0,
+             origin=(0, 0),
+             color=color.black)
+        # tells the user that they can quit the game easily by pressing the escape button
+
+        Text(text="Press the escape button to go back to the main menu",
+             parent=self.options_menu,
+             y=0.4,
+             x=0,
+             origin=(0, 0),
+             color=color.black)
+        # tells the user that they can go back to the main menu easily by pressing the escape button
+
+        Text(text="Press the escape button to go back to the main menu",
+             parent=self.leaderboard_screen,
+             y=0.4,
+             x=0,
+             origin=(0, 0),
+             color=color.black)
+
+        self.barry_r = Entity(
+            parent=Gameplay.player,
+            model='cube',
+            collider='mesh',
+            position=(0, 0, .5),
+            scale=(100, 100, .1),
+            color=color.orange,
+            enabled=True
+        )
+        # This is a cube, similar to the hitbox for detecting the bullets the enemies shoot at the player in the
+        # Gameplay class
+
+        input_username = InputField(y=-.20)
+        # this is an input box for entering the username. This will be visible when the Input Name button is clicked
+        input_username.visible = False
+        # makes the input field for the username invisible so that the main menu is minimalistic
+
+        def input_name():
+            input_username.visible = True
+            # this makes the input box for entering the username visible when the Input Name button is clicked on the
+            # main menu
+            enter_button = Button(
+                "Enter",
+                y=-.26,
+                on_click=submit,
+                parent=self.main_menu).fit_to_text()
+            # this is a simple button that runs the submit function to pass the username to the Score class. This is
+            # only accessible if the Input Name button is clicked
+
+        def submit():
+            print("Username: ", input_username.text)
+            # this is used to test the username variable
+            score_username = Score(input_username.text)
+            # passes the username to the Score class by creating an instance of it and having the text typed into the
+            # input box as a parameter for the attribute 'username'
+
+        def start_button():
+            self.barry_r.enabled = False
+            # this disables the barry_r cube when the 'Start' button is clicked
+            self.main_menu.disable()
+            # this disables the main menu when the 'Start' button is clicked
+            mouse.locked = True
+            mouse.visible = False
+            # the two lines of code above are for disabling the mouse and locking it so that it doesn't interfere with
+            # the cross-hair
+            input_username.visible = False
+            # makes the input field for the username invisible once the start button is pressed
+            EnemyBullet.enabled = True
+            # this enables the EnemyBullet class when the start button is clicked. This means that the parameter
+            # 'enabled' in the instance created in the Enemy class is set to True, meaning that the enemies will shoot
+            # as soon as the Start button is clicked. This will solve the problem of the player losing health inside the
+            # main menu.
+
+        def quit_game():
+            application.quit()
+            # this quits the game when the 'quit' button is clicked
+
+        def options_menu_btn():
+            self.options_menu.enable()
+            # activates the options menu when the 'options' button is clicked
+            self.main_menu.disable()
+            # this disables the main menu when the 'options' button is clicked
+
+        def leaderboard():
+            self.main_menu.disable()
+            # this disables the main menu when the 'leaderboard' button is clicked
+            self.leaderboard_screen.enable()
+            # this enables the leaderboard screen when the 'leaderboard' button is clicked
+            text_entity = Text(
+                parent=self.leaderboard_screen,
+                y=.3,
+                x=0,
+                origin=(0, 0),
+                color=color.black)
+            # this is the text that will be displayed on the leaderboard screen. The actual text for it is generated
+            # after sorting the array of scores and usernames and then it will hold the top 5 scores and usernames in
+            # the text parameter
+            score_array = []
+            # blank array responsible for holding the scores and usernames from the score.txt file
+            with open("score.txt", mode='r') as file:
+                lines = file.readlines()
+                # returns a list containing each line in score.txt as a list item
+                for line in lines:
+                    line = line.strip()
+                    # removes "\n" from the end of each line
+                    line = line.split(",")
+                    # turns each line into an array and separates each line by a comma in the array
+                    username_text = line[0]
+                    # the first value of each line is the username
+                    killcount_text = line[1]
+                    # the second value of each line is the score, this will be useful for converting each score into an
+                    # integer and for sorting the array
+                    score_array.append([username_text, int(killcount_text)])
+                    # appends the username as a string and killcount as an integer together for each line
+                    score_array.sort(key=lambda x: x[1], reverse=True)
+                    # the key creates a function and uses index[1], which is the integer in each tuple, to check if all
+                    # other numbers are higher or lower than it. Because reverse is set to True, score_array will be
+                    # sorted from the highest integer to smallest integer.
+                    print(score_array)
+                    # prints score_array for testing if the sorting algorithm worked properly
+                score_array_lead = score_array[0:5]
+                # selects the first 5 tuples in the array. These are the top 5 scores and usernames after sorting it
+                print("Leaderboard:", score_array_lead)
+                # this is used to test if the leaderboard works
+                score_array_text = "\n".join(" ".join(map(str, item)) for item in score_array_lead)
+                # here, an item is a single element. This means that there is a space between the username and score and
+                # then the brackets, commas and quotation marks in the array are removed so that the leaderboard is
+                # presentable on the leaderboard screen
+                print(score_array_text)
+                # outputs the text generated by score_array_text to test if the brackets, quotation marks and commas are
+                # removed from each line
+                text_entity.text = score_array_text
+                # the text generated from score_array_text is used as the text in the text_entity for displaying the
+                # leaderboard on the leaderboard screen
+
+        # Button list
+        ButtonList(button_dict={
+            "Start": Func(start_button),
+            "Options": Func(options_menu_btn),
+            "Leaderboard": Func(leaderboard),
+            "Exit": Func(quit_game),
+            "Input Name": Func(input_name)
+        }, y=0, parent=self.main_menu)
+        #   'Button text': the function it will perform
+        #   This is easy for making buttons for the main menu
+        #   parenting this to the main menu makes sure the buttons only stay on the main menu
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+        # the attributes of this class can be changed when this class is called
+
+        def options_back_button():
+            self.main_menu.enable()
+            self.options_menu.disable()
+
+        # Button(text="Back", parent=self.options_menu, y=-0.3, scale=(0.1, 0.05), color=color.black,
+        #      on_click=options_back_button)
+
+    def input(self, key):
+        # if the main menu is being displayed, then the escape key can be used to quit the game, making it easy to quit
+        # the game. This will be done for all menus in this class.
+        if self.main_menu.enabled:
+            if key == "escape":
+                application.quit()
+                # when the escape key is pressed in the main menu, the game quits
+        if self.options_menu.enabled:
+            if key == "escape":
+                self.options_menu.disable()
+                self.main_menu.enable()
+                # when the escape key is pressed in the options menu, the options menu is disabled and the main menu is
+                # enabled
+        if self.leaderboard_screen.enabled:
+            if key == "escape":
+                self.leaderboard_screen.disable()
+                self.main_menu.enable()
+                # when the escape key is pressed in the leaderboard screen, the leaderboard screen is disabled and the
+                # main menu is enabled
 
 
 class Map:
@@ -79,7 +296,9 @@ class Player(Entity):
         self.switchweapon()  # this will run in the constructor because it will use self.currentWeapon to find a gun in
         # self.weapons, which it will then make the variable 'visible' True
         # self.collider = 'mesh'
-        self.ammo = 10
+        self.ammo = 100
+        # the ammunition avaiable to the player is set to 100 by default. An inventory/store will be made in post
+        # development where the user can buy ammo from the store after accumulating coins from killing enemies
 
     def switchweapon(self):
         for i, v in enumerate(self.weapons):  # i is the index for the array and v is the 'visible' parameter
@@ -124,6 +343,7 @@ class Player(Entity):
             # weapon will change.
             print("down arrow is pressed")
         if key == 'tab':
+            # when the tab key is pressed, the integer stored in self.ammo in the constructor decreasees by 1
             self.ammo -= 1
             if self.ammo > 0:
                 Bullet(model='sphere',
@@ -132,7 +352,18 @@ class Player(Entity):
                        position=self.player_controls.camera_pivot.world_position,
                        rotation=self.player_controls.camera_pivot.world_rotation,
                        )
+                # the Bullet instance will run as long as self.ammo is higher than 0
                 print('bullet: ', self.ammo)
+        if key == 'left alt':
+            mouse.locked = False
+            mouse.visible = True
+            # when the left alt/option key is pressed, the mouse can move. This will be useful for when I develop an
+            # inventory/shop
+        if key == 'left control':
+            mouse.locked = True
+            mouse.visible = False
+            # when the left control key is pressed, the mouse is locked and disabled so that it doesn't interfere with
+            # the cross-hair for shooting the gun
 
 
 # Has basic controls for moving the player in a first person game
@@ -152,6 +383,7 @@ class Enemy(Entity):
             collider="box",  # adds collision detection to the enemy sprite
             scale=(1, 2.5, 0),  # scale=(x,y,z)
             position=position,  # this is the spawn location for the enemy sprite. This isn't a fixed value because
+            name='enemy'
         )
         self.delay = 0
 
@@ -176,7 +408,6 @@ class Enemy(Entity):
         This has been done because every enemy has a mesh collider, which means that when a ray from an enemy hits
         another enemy, it will know that it shouldn't go into that enemy.
         '''
-        # outputs when a ray has been hit
         if not ray.hit:
             self.position += random_direction
         # if the ray doesn't hit any object with a collider, it will move in a random direction
@@ -191,35 +422,9 @@ class Enemy(Entity):
                 color=color.green,
                 scale=0.1,
                 position=self.position,
-                rotation=self.rotation
+                rotation=self.rotation,
+                enabled=False
             )
-
-
-class Gameplay:
-    enemies = []
-    # the array for enemy instances
-    for x in range(5):
-        # spawns 3 enemies in by running this loop 3 times
-        random_spawn_position = random.randint(100, 200)
-        '''
-this creates a random number between 100 and 200 so that it can be used as the 'Z' parameter in the position attribute
-this is then used in enemy_instance so that each enemy spawns at a random location on the map when the game starts
-        '''
-        enemy_instance = Enemy(position=Vec3(x, 0, random_spawn_position))
-        # creates an instance of Enemy and changes 'random_spawn_position' is used to generate a random spawn point
-        enemies.append(enemy_instance)
-        # puts each instance in the enemies array
-    killcount = 0
-    # this counter is for the number of kills the player gets
-    healthBar = HealthBar()
-    player = Player(speed=40)
-    hitbox = Entity(model='cube',
-                    parent=player,
-                    scale=(1.2, 5, .2),
-                    collider='box',
-                    position=(0, 0, -.5),
-                    alpha=0
-                    )
 
 
 class EnemyBullet(Entity):
@@ -236,15 +441,14 @@ class EnemyBullet(Entity):
             # sets the start position for the ray, which is from the player
             self.forward,
             # sets the direction the ray will go
-            # makes sure that the ray only registers with enemy instances
-            traverse_target=Gameplay.hitbox,
+            traverse_target=Gameplay.player,
+            # makes sure that the ray only registers with the player
             ignore=(Map.ground, Map.wall_left, Map.wall_back, Map.wall_front, Map.wall_right, Gameplay.enemies),
-            # this is a list of entities that the ray will not affect. This is because the ray would
-            # remove anything it touches
+            # this is a list of entities that the ray will not affect. This is because the ray would remove anything it
+            # touches
             distance=self.speed * time.dt,
             # uses the speed of the bullet and multiplies it by the delta time (the difference between
             # the previous frame and the current frame) as the distance of the ray
-            debug=True
         )
         if not enemy_bullet_ray.hit and time.time() - self.start < self.lifetime:
             # if the bullet doesn't hit anything with a collider and the bullet doesn't get timed out, the bullet
@@ -258,8 +462,12 @@ class EnemyBullet(Entity):
         if enemy_bullet_ray.hit:
             # if the bullet shot by the enemy collides with anything with a collider, it will reduce the health bar for
             # the player by 5 each time
-            # print(enemy_bullet_ray.entity)
+            print(enemy_bullet_ray.entity)
+            # outputs the entity the enemy bullet hits
             Gameplay.healthBar.value -= 5
+            print('Player health:', Gameplay.healthBar.value)
+            # this is used for testing the health of the player to see whether or not the health decreases when it is
+            # shot
 
 
 class Bullet(Entity):
@@ -308,17 +516,86 @@ class Bullet(Entity):
                 # if the bullet hits anything with a collider, it will remove/destroy the entity that is hit
                 # if the instance hit by the bullet is in the enemies array in the Gameplay class
                 # the counter in the gameplay class will increment by 1
-                Gameplay.killcount += 1
-                print(Gameplay.killcount)
+                Gameplay.enemies.remove(bullet_ray.entity)
+                # this removes the enemy instance the bullet hit from the enemies array inside the Gameplay class
+                print(Gameplay.enemies)
+                # outputs the enemies array to make sure the enemy instance was removed
+                print('Length of array:', len(Gameplay.enemies))
+                # outputs the length of the enemies array
+                Score.killcount += 1
+                # increases the player's score by 1
+                print(Score.killcount)
                 # this outputs the counter for testing.
-                score = open('score.txt', 'a')
-                score.write(str(Gameplay.killcount))
-                score.close()
 
 
-# uses the position of the player on the map to look at the player
-# Enemy.enemy.y = 3
-# Enemy.enemy.position += Enemy.enemy.forward * 0.05
-# enemy position goes forward slowly when the player moves
+class Gameplay:
+    enemies = []
+    # the array for holding enemy instances
+    for x in range(1):
+        # spawns (x) enemies in by running this loop (x) times
+        random_spawn_position = random.randint(100, 200)
+        '''
+this generates a random number between 100 and 200 so that it can be used as the 'Z' parameter in the position attribute
+this is then used in enemy_instance so that each enemy spawns at a random location on the map when the game starts
+        '''
+        enemy_instance = Enemy(position=Vec3(x, 0, random_spawn_position))
+        # creates an instance of Enemy and changes 'random_spawn_position' is used to generate a random spawn point
+        enemies.append(enemy_instance)
+        # puts each instance in the enemies array
+    healthBar = HealthBar()
+    # a health bar in the library used to show the player's health
+    player = Player(speed=40, position=(0, 0, 130))
+    # instance of the Player class with speed set to 40
+    hitbox = Entity(model='cube',
+                    parent=player,
+                    scale=(1.2, 5, .2),
+                    collider='box',
+                    position=(0, 0, -.5),
+                    alpha=0,
+                    enabled=False
+                    )
+    '''
+    this is the collider that is assigned to the player instance so that when an enemy shoots a bullet at the player,
+    the hitbox gets detected by the enemy bullet ray and then health can be taken off the health bar for the player. The
+    hitbox is slightly behind the player position so that it doesn't interfere with the movement of the player
+    '''
+
+
+class Score:
+    killcount = 0
+
+    # this counter is for the number of kills the player gets
+
+    def __init__(self, username):
+        self.username = username
+        # holds the username entered in input_username in the MainMenu class
+        print('Score class:', username)
+        # used to test if the username has been passed to the Score class
+        global global_username
+        # globalises the global_username variable so that it can be used in the update function below this class
+        global_username = str(self.username)
+        # this variable converts the atrtibute into a string and is accessible by other classes and the main body of the
+        # code by 'global global_username'
+
+
+def update():
+    # this function will update every frame, meaning that the if statement below will work
+    if Gameplay.healthBar.value == 0 or len(Gameplay.enemies) == 0:
+        # if the healthbar for the player's health reaches 0 or the length of the enemy array is 0, then the game
+        # will end
+        application.quit()
+        # quits the game
+        username = global_username
+        # gets global_username from the Score class so that it can be used to write the username to the text file
+        score = str(Score.killcount)
+        print("Username at end of game", username)
+        # used to check if the username has been globalised for testing
+        with open("score.txt", mode='a') as score_file:
+            score_file.write(username + ", " + score + "\n")
+            # writes the username and score separated by a comma. The newline command at the end makes sure that a new
+            # line is created for the next username and score
+
+
+main_menu = MainMenu()
 app.run()
 # opens the window and runs the game
