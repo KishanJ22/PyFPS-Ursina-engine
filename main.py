@@ -6,13 +6,15 @@ from ursina.prefabs.health_bar import HealthBar
 from ursina import *
 # imports the Ursina Engine
 from ursina.raycaster import raycast
-
 # imports a raycaster
 
 app = Ursina()
+# initializes the Ursina program
 
-
-# initializes the Ursina app
+window.fullscreen_size = (1200, 1300)
+# sets the fullscreen resolution
+window.fullscreen = True
+# uses the fullscreen_size to create a window with that size
 
 
 class MainMenu(Entity):
@@ -36,6 +38,8 @@ class MainMenu(Entity):
 
         Text(text="MAIN MENU",
              parent=self.main_menu,
+             size=.055,
+             font="Fonts/osaka-re.ttf",
              y=0.4,
              x=0,
              origin=(0, 0),
@@ -44,14 +48,18 @@ class MainMenu(Entity):
 
         Text(text="Please click on Input Name, enter a username and click Enter to register your username",
              parent=self.main_menu,
+             size=.033,
+             font="Fonts/osaka-re.ttf",
              y=0.35,
              x=0,
              origin=(0, 0),
              color=color.black)
         # this displays what the user should do before starting the game
 
-        Text(text="Press the escape button to quit the game",
+        Text(text="Press the escape key or Quit button to quit the game",
              parent=self.main_menu,
+             size=.035,
+             font="Fonts/osaka-re.ttf",
              y=0.3,
              x=0,
              origin=(0, 0),
@@ -60,6 +68,8 @@ class MainMenu(Entity):
 
         Text(text="Press the escape button to go back to the main menu",
              parent=self.options_menu,
+             size=.04,
+             font="Fonts/osaka-re.ttf",
              y=0.4,
              x=0,
              origin=(0, 0),
@@ -68,6 +78,8 @@ class MainMenu(Entity):
 
         Text(text="Press the escape button to go back to the main menu",
              parent=self.leaderboard_screen,
+             size=.04,
+             font="Fonts/osaka-re.ttf",
              y=0.4,
              x=0,
              origin=(0, 0),
@@ -76,7 +88,6 @@ class MainMenu(Entity):
         self.barry_r = Entity(
             parent=Gameplay.player,
             model='cube',
-            collider='mesh',
             position=(0, 0, .5),
             scale=(100, 100, .1),
             color=color.orange,
@@ -89,6 +100,8 @@ class MainMenu(Entity):
         # this is an input box for entering the username. This will be visible when the Input Name button is clicked
         input_username.visible = False
         # makes the input field for the username invisible so that the main menu is minimalistic
+        Gameplay.player.ammo_text.visible = False
+        # makes the bullet text in the game not visible
 
         def input_name():
             input_username.visible = True
@@ -120,11 +133,11 @@ class MainMenu(Entity):
             # the cross-hair
             input_username.visible = False
             # makes the input field for the username invisible once the start button is pressed
-            EnemyBullet.enabled = True
-            # this enables the EnemyBullet class when the start button is clicked. This means that the parameter
-            # 'enabled' in the instance created in the Enemy class is set to True, meaning that the enemies will shoot
-            # as soon as the Start button is clicked. This will solve the problem of the player losing health inside the
-            # main menu.
+            Gameplay.hitbox.enabled = True
+            # this will enable the player's hitbox when the Start button is clicked so that the player doesn't lose any
+            # health in the main menu.
+            Gameplay.player.ammo_text.visible = True
+            # makes the bullet text in the game visible once the Start button is clicked
 
         def quit_game():
             application.quit()
@@ -143,7 +156,8 @@ class MainMenu(Entity):
             # this enables the leaderboard screen when the 'leaderboard' button is clicked
             text_entity = Text(
                 parent=self.leaderboard_screen,
-                y=.3,
+                font="Fonts/Formula1 Display-Italic.otf",
+                y=.25,
                 x=0,
                 origin=(0, 0),
                 color=color.black)
@@ -202,14 +216,8 @@ class MainMenu(Entity):
 
         for key, value in kwargs.items():
             setattr(self, key, value)
+
         # the attributes of this class can be changed when this class is called
-
-        def options_back_button():
-            self.main_menu.enable()
-            self.options_menu.disable()
-
-        # Button(text="Back", parent=self.options_menu, y=-0.3, scale=(0.1, 0.05), color=color.black,
-        #      on_click=options_back_button)
 
     def input(self, key):
         # if the main menu is being displayed, then the escape key can be used to quit the game, making it easy to quit
@@ -297,8 +305,17 @@ class Player(Entity):
         # self.weapons, which it will then make the variable 'visible' True
         # self.collider = 'mesh'
         self.ammo = 100
-        # the ammunition avaiable to the player is set to 100 by default. An inventory/store will be made in post
+        # the ammunition available to the player is set to 100 by default. An inventory/store will be made in post
         # development where the user can buy ammo from the store after accumulating coins from killing enemies
+        self.ammo_text = Text(
+            size=.04,
+            font="Fonts/osaka-re.ttf",
+            parent=camera.ui,
+            origin=(.5, .5),
+            y=0.5,
+            x=0.45,
+            color=color.black
+        )
 
     def switchweapon(self):
         for i, v in enumerate(self.weapons):  # i is the index for the array and v is the 'visible' parameter
@@ -343,7 +360,7 @@ class Player(Entity):
             # weapon will change.
             print("down arrow is pressed")
         if key == 'tab':
-            # when the tab key is pressed, the integer stored in self.ammo in the constructor decreasees by 1
+            # when the tab key is pressed, the integer stored in self.ammo in the constructor decreases by 1
             self.ammo -= 1
             if self.ammo > 0:
                 Bullet(model='sphere',
@@ -364,6 +381,9 @@ class Player(Entity):
             mouse.visible = False
             # when the left control key is pressed, the mouse is locked and disabled so that it doesn't interfere with
             # the cross-hair for shooting the gun
+
+    def update(self):
+        self.ammo_text.text = "Bullets: "+str(self.ammo)
 
 
 # Has basic controls for moving the player in a first person game
@@ -422,8 +442,7 @@ class Enemy(Entity):
                 color=color.green,
                 scale=0.1,
                 position=self.position,
-                rotation=self.rotation,
-                enabled=False
+                rotation=self.rotation
             )
 
 
@@ -431,7 +450,7 @@ class EnemyBullet(Entity):
     def __init__(self, speed=60, lifetime=5, **kwargs):
         super().__init__(**kwargs)
         self.speed = speed  # uses the integer '50' as the speed
-        self.lifetime = lifetime  # uses the integer '10' for how long the bullet will last
+        self.lifetime = lifetime  # uses the integer '5' for how long the bullet will last
         self.start = time.time()  # uses time to remove the bullet from the game if it has been there for too long
         # time.time is also used to get the time the bullet is fired and counts from when it was fired
 
@@ -531,7 +550,7 @@ class Bullet(Entity):
 class Gameplay:
     enemies = []
     # the array for holding enemy instances
-    for x in range(1):
+    for x in range(8):
         # spawns (x) enemies in by running this loop (x) times
         random_spawn_position = random.randint(100, 200)
         '''
@@ -544,7 +563,7 @@ this is then used in enemy_instance so that each enemy spawns at a random locati
         # puts each instance in the enemies array
     healthBar = HealthBar()
     # a health bar in the library used to show the player's health
-    player = Player(speed=40, position=(0, 0, 130))
+    player = Player(speed=40)
     # instance of the Player class with speed set to 40
     hitbox = Entity(model='cube',
                     parent=player,
@@ -574,14 +593,14 @@ class Score:
         global global_username
         # globalises the global_username variable so that it can be used in the update function below this class
         global_username = str(self.username)
-        # this variable converts the atrtibute into a string and is accessible by other classes and the main body of the
+        # this variable converts the attribute into a string and is accessible by other classes and the main body of the
         # code by 'global global_username'
 
 
 def update():
     # this function will update every frame, meaning that the if statement below will work
     if Gameplay.healthBar.value == 0 or len(Gameplay.enemies) == 0:
-        # if the healthbar for the player's health reaches 0 or the length of the enemy array is 0, then the game
+        # if the health bar for the player's health reaches 0 or the length of the enemy array is 0, then the game
         # will end
         application.quit()
         # quits the game
@@ -597,5 +616,6 @@ def update():
 
 
 main_menu = MainMenu()
+# initialises the MainMenu class
 app.run()
 # opens the window and runs the game
